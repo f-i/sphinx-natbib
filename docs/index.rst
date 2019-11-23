@@ -153,7 +153,7 @@ Style: ``super``
 ----------------
 
 The one major caveat with the ``super`` citation style is that any pre- and
-post-citation text does not look very good.  For this reason, it is suggested
+post-citation text does not look very good, so it is suggested
 to avoid such text if you use the ``super`` citation style.
 
 .. cite:conf:: super
@@ -179,7 +179,7 @@ to avoid such text if you use the ``super`` citation style.
     - :cite:ts:`Marten+As:1900`
   * - ``\citep*{Marten+As:1900}``
     - ``:cite:ps:`Marten+As:1900```
-    - :cite:ps:`Marten+As:1900`
+    - :cite:ps:`Marten+As:1900,doe-2525-tq`
 
 .. _section-suppressed_parentheses:
 

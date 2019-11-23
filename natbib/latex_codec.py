@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """latex.py
 
 Character translation utilities for LaTeX-formatted text.
@@ -15,22 +16,20 @@ We also make public a dictionary latex_equivalents,
 mapping ord(unicode char) to LaTeX code.
 
 D. Eppstein, October 2003.
+Chenjian Fu, Nov 2016
 """
 
 from __future__ import generators
-import codecs
-import re
-from sets import Set
+import codecs,re
 
 def register():
     """Enable encodings of the form 'latex+x' where x describes another encoding.
     Unicode characters are translated to or from x when possible, otherwise
-    expanded to latex.
-    """
+    expanded to latex. """
     codecs.register(_registry)
 
 def getregentry():
-    """Encodings module API."""
+    """Encodings module API"""
     return _registry('latex')
 
 def _registry(encoding):
@@ -40,10 +39,11 @@ def _registry(encoding):
         encoding = encoding[6:]
     else:
         return None
-        
+
     class Codec(codecs.Codec):
         def encode(self,input,errors='strict'):
-            """Convert unicode string to latex."""
+            """For Py3, this function is useless, /en/decoding is not necessary any more
+            Convert unicode string(str for py3) to latex(bytes for py3)"""
             output = []
             for c in input:
                 if encoding:
@@ -55,36 +55,37 @@ def _registry(encoding):
                 if ord(c) in latex_equivalents:
                     output.append(latex_equivalents[ord(c)])
                 else:
-                    output += ['{\\char', str(ord(c)), '}']
+                    output += ['{\\char',str(ord(c)),'}']
             return ''.join(output), len(input)
-            
+
         def decode(self,input,errors='strict'):
-            """Convert latex source string to unicode."""
+            """For Py3, this function is useless, /en/decoding is not necessary any more
+            Convert latex source string(bytes for Py3) to unicode(str for Py3)"""
             if encoding:
-                input = unicode(input,encoding,errors)
+                input = str(input,encoding,errors)
 
             # Note: we may get buffer objects here.
             # It is not permussable to call join on buffer objects
             # but we can make them joinable by calling unicode.
             # This should always be safe since we are supposed
-            # to be producing unicode output anyway.
-            x = map(unicode,_unlatex(input))
-            return u''.join(x), len(input)
-    
+            # to be producing unicode(str for Py3) output anyway.
+            x = list(map(str,_unlatex(input)))
+            return ''.join(x), len(input)
+
     class StreamWriter(Codec,codecs.StreamWriter):
         pass
-            
+
     class StreamReader(Codec,codecs.StreamReader):
         pass
 
     return (Codec().encode,Codec().decode,StreamReader,StreamWriter)
 
 def _tokenize(tex):
-    """Convert latex source into sequence of single-token substrings."""
+    """Convert latex source into sequence of single-token substrings"""
     start = 0
     try:
         # skip quickly across boring stuff
-        pos = _stoppers.finditer(tex).next().span()[0]
+        pos = _stoppers.finditer(tex).__next__().span()[0]
     except StopIteration:
         yield tex
         return
@@ -122,26 +123,26 @@ def _tokenize(tex):
                     pos += 1
 
 class _unlatex:
-    """Convert tokenized tex into sequence of unicode strings.  Helper for decode()."""
+    """Convert tokenized tex into sequence of unicode strings. Helper for decode()"""
 
     def __iter__(self):
-        """Turn self into an iterator.  It already is one, nothing to do."""
+        """Turn self into an iterator. It already is one, nothing to do"""
         return self
 
     def __init__(self,tex):
-        """Create a new token converter from a string."""
+        """Create a new token converter from a string"""
         self.tex = tuple(_tokenize(tex))  # turn tokens into indexable list
         self.pos = 0                    # index of first unprocessed token 
         self.lastoutput = 'x'           # lastoutput must always be nonempty string
-    
+
     def __getitem__(self,n):
-        """Return token at offset n from current pos."""
+        """Return token at offset n from current pos"""
         p = self.pos + n
         t = self.tex
         return p < len(t) and t[p] or None
 
-    def next(self):
-        """Find and return another piece of converted output."""
+    def __next__(self):
+        """Find and return another piece of converted output"""
         if self.pos >= len(self.tex):
             raise StopIteration
         nextoutput = self.chunk()
@@ -149,29 +150,28 @@ class _unlatex:
             nextoutput = ' ' + nextoutput   # add extra space to terminate csname
         self.lastoutput = nextoutput
         return nextoutput
-    
+
     def chunk(self):
-        """Grab another set of input tokens and convert them to an output string."""
+        """Grab another set of input tokens and convert them to an output string"""
         for delta,c in self.candidates(0):
             if c in _l2u:
                 self.pos += delta
-                return unichr(_l2u[c])
+                return chr(_l2u[c])
             elif len(c) == 2 and c[1] == 'i' and (c[0],'\\i') in _l2u:
                 self.pos += delta       # correct failure to undot i
-                return unichr(_l2u[(c[0],'\\i')])
+                return chr(_l2u[(c[0],'\\i')])
             elif len(c) == 1 and c[0].startswith('\\char') and c[0][5:].isdigit():
                 self.pos += delta
-                return unichr(int(c[0][5:]))
-    
+                return chr(int(c[0][5:]))
+
         # nothing matches, just pass through token as-is
         self.pos += 1
         return self[-1]
-    
+
     def candidates(self,offset):
         """Generate pairs delta,c where c is a token or tuple of tokens from tex
         (after deleting extraneous brackets starting at pos) and delta
-        is the length of the tokens prior to bracket deletion.
-        """
+        is the length of the tokens prior to bracket deletion. """
         t = self[offset]
         if t in _blacklist:
             return
@@ -474,12 +474,12 @@ for _i in range(0x0020,0x007f):
         latex_equivalents[_i] = chr(_i)
 
 # Characters that should be ignored and not output in tokenization
-_ignore = Set([chr(i) for i in range(32)+[127]]) - Set('\t\n\r')
+_ignore = set([chr(i) for i in list(range(32))+[127]]) - set('\t\n\r')
 
 # Regexp of chars not in blacklist, for quick start of tokenize
 _stoppers = re.compile('[\x00-\x1f!$\\-?\\{~\\\\`\']')
 
-_blacklist = Set(' \n\r')
+_blacklist = set(' \n\r')
 _blacklist.add(None)    # shortcut candidate generation at end of data
 
 # Construction of inverse translation table
@@ -507,7 +507,7 @@ for _tex in latex_equivalents:
 
 # Shortcut candidate generation for certain useless candidates:
 # a character is in _blacklist if it can not be at the start
-# of any translation in _l2u.  We use this to quickly skip through
+# of any translation in _l2u. We use this to quickly skip through
 # such characters before getting to more difficult-translate parts.
 # _blacklist is defined several lines up from here because it must
 # be defined in order to call _tokenize, however it is safe to
